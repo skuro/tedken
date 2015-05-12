@@ -16,6 +16,9 @@
     (valid? token)
     false))
 
+(defn ^String encode
+  [^bytes stuff])
+
 (defn ^bytes secure
   "Encrypts a string using AES"
   [^String s]
