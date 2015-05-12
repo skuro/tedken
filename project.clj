@@ -4,7 +4,8 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [lock-key "1.1.0"]]
+                 [lock-key "1.1.0"]
+                 [org.clojure/data.codec "0.1.0"]]
   :profiles {:dev {:dependencies [[midje "1.5.1"]
                                   [environ "1.0.0"]]
                    :plugins [[lein-midje "3.1.3"]]

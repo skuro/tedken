@@ -1,5 +1,6 @@
 (ns tedken.core
   (:require [environ.core :refer [env]]
+            [clojure.data.codec.base64 :as b64]
             [lock-key.core :as sec]))
 
 (defn valid?
@@ -15,23 +16,20 @@
     (valid? token)
     false))
 
-(def encoder (java.util.Base64/getEncoder))
-
-(def decoder (java.util.Base64/getDecoder))
-
-(defn secure
+(defn ^bytes secure
   "Encrypts a string using AES"
-  [s]
-  (-> s
-      (sec/encrypt (env :tedken-key))
-      (->> (.encodeToString encoder))))
+  [^String s]
+  (let [ bytes (-> s
+                   (sec/encrypt (env :tedken-key))
+                   b64/encode)]
+    (String. ^bytes bytes "utf-8")))
 
-(defn decode
+(defn ^bytes decode
   "Decodes a Base64 string into bytes"
-  [encrypted]
-  (.decode decoder encrypted))
+  [^String encrypted]
+  (b64/decode (.getBytes encrypted "utf-8")))
 
-(defn decrypt
+(defn ^String decrypt
   "Decrypts the token"
   [token]
   (let [decoded (decode token)]
