@@ -69,3 +69,14 @@
          (secured? (with-token right-user) (constantly "john")) => true
          (secured? (with-token wrong-user) (constantly "john")) => false
          (secured? (with-token old-stamp)  (constantly "john")) => false))
+
+(defn token->user
+  "Midje checker function that ensures the token is for the given user"
+  [user]
+  (fn [res]
+    (let [token (get-in res [:headers "X-CSRF-Token"])
+          [res-user _ _] (parse-token token)]
+      (= user res-user))))
+
+(fact "I can add tokens to the response"
+      (add-token {} (constantly "john") {}) => (token->user "john"))
