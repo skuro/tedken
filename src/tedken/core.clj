@@ -59,8 +59,10 @@
 (defn valid?
   "Validates the information included into the token"
   [user user-fn stamp request]
-  (and (= user (user-fn request))
-       (actual? stamp)))
+  (if (and (= user (user-fn request))
+           (actual? stamp))
+    [user stamp]
+    false))
 
 (defn secured?
   "Checks if the request contain a valid CSRF protection token"
@@ -86,11 +88,37 @@
         token (create-token user stamp nonce)]
     (assoc-in response [:headers "X-CSRF-Token"] token)))
 
+(defn apply-security?
+  "Filters out HTTP methods for which security is not necessary"
+  [request]
+  (not (#{:get :head :options} (:request-method request))))
+
+(defn process-unsafe
+  "Processes non-mutating requests and adds a token to the response if there is a user context"
+  [handler request user-fn]
+  (let [response (handler request)]
+    (if-let [user (user-fn request response)]
+      (add-token request user-fn response)
+      response)))
+
+(defn process-safe
+  "Checks if the request contains a valid token. If so, processes the request and adds a token to the response."
+  [handler request user-fn]
+  (if-let [[user stamp] (secured? request user-fn)]
+    (let [response (handler request)]
+      (add-token request user-fn response))
+    (unauthorized)))
+
 (defn wrap-csrf-token
-  "RING wrapper that creates and sets encrypted tokens to prevent CSRF attacks"
+  "RING wrapper that creates and sets encrypted tokens to prevent CSRF attacks. user-fn
+   must accept the following arities:
+
+   - (user-fn request)
+   - (user-fn request response)
+
+   And must return the user name / ID of the currently logged in user"
   [handler user-fn]
   (fn [request]
-    (if (secured? request user-fn)
-      (let [response (handler request)]
-        (add-token request user-fn response))
-      (unauthorized))))
+    (if (apply-security? request)
+      (process-safe   handler request user-fn)
+      (process-unsafe handler request user-fn))))

@@ -7,7 +7,7 @@
 (defn insecure-request
   "Creates a RING request with no token"
   []
-  {:method :post
+  {:request-method :post
    :headers []})
 
 (defn secure-request
@@ -15,7 +15,7 @@
   []
   (let [response (add-token (insecure-request) (constantly "john") {})
         token (get-in response [:headers "X-CSRF-Token"])]
-    {:method :post
+    {:request-method :post
      :headers {"X-CSRF-Token" token}}))
 
 (defn dummy-handler
@@ -66,9 +66,9 @@
       wrong-user (create-token "tony" (now) "fluff")
       old-stamp  (create-token "john" (some-minutes-ago (* 3 60)) "fluff")]
   (facts "Requests are secured if the token contains the right user and an actual timestamp"
-         (secured? (with-token right-user) (constantly "john")) => true
-         (secured? (with-token wrong-user) (constantly "john")) => false
-         (secured? (with-token old-stamp)  (constantly "john")) => false))
+         (secured? (with-token right-user) (constantly "john")) => truthy
+         (secured? (with-token wrong-user) (constantly "john")) => falsey
+         (secured? (with-token old-stamp)  (constantly "john")) => falsey))
 
 (defn token->user
   "Midje checker function that ensures the token is for the given user"
@@ -80,3 +80,26 @@
 
 (fact "I can add tokens to the response"
       (add-token {} (constantly "john") {}) => (token->user "john"))
+
+(fact "Get requests are always processed"
+      (let [get-request {:request-method :get}
+            wrapped (wrap-csrf-token dummy-handler (constantly nil))]
+        (apply-security? get-request) => false
+        (wrapped get-request)) => (contains {:status 200}))
+
+(fact "GET requests that have a user context have a token appended"
+      (let [get-request {:request-method :get}
+            wrapped (wrap-csrf-token dummy-handler (constantly "john"))]
+        (wrapped get-request)) => (token->user "john"))
+
+(fact "POST requests with no token or an invalid token are thrown away"
+      (let [wrapped (wrap-csrf-token dummy-handler (constantly "john"))
+            no-token    {:request-method :post}
+            wrong-token (with-token (create-token "woot" "not-a-number" "fluff"))]
+        (wrapped no-token) => (contains {:status 401})
+        (wrapped wrong-token) => (contains {:status 401})))
+
+(fact "POST requests with a valid token follow the happy flow"
+      (let [wrapped (wrap-csrf-token dummy-handler (constantly "john"))
+            token   (with-token (create-token "john" (now) "fluff"))]
+        (wrapped token) => (contains {:status 200})))
